@@ -1,15 +1,16 @@
 name: React CI/CD
 
-# 트리거 : Push, PR(Pull & Request) 이벤트 발생 시 작동, 브런치는 main(없으면 master)
-# 만약, 프런트, 백엔드 통합 => 특정 디렉토리가 업데이트 될 때 바녕ㅇ해라 등 세부 조건 추가 가능
+# 트리거 : PUSH, PR(pull request) 이벤트 발생시 작동, 브런치는 main(없으면  master)
+# 만약, 프런트, 백엔드 통합 => 특정 디렉토리가 업데이트 될때 반영해라 등 세부 조건 추가 가능
 on:
   push:
     branches:
-      - master
-    pull_request:
-      branches:
-        - master
-# 해야할 일
+      - main
+  pull_request:
+    branches:
+      - main
+
+# 해야할일
 jobs:
   react-deploy:
     runs-on: ubuntu-latest
@@ -18,13 +19,13 @@ jobs:
       - name: Checkout repository resource
         uses: actions/checkout@v2
 
-      # 환경변수 동적 생성 -> .env 파일 생성 (ec2 정보 세팅), 기존 코드 수정(보안)
-      # .env 파일은 GitHub에 노출되면 X
+      # 환경변수 동적 생성 -> .env 파일 생성(ec2 정보 세팅), 기존코드 수정(보안)
       - name: .env 환경 변수 동적 생성
         run: |
           echo "${{ secrets.CLIENT_ENV }}" > .env
           pwd
           ls -al
+
 
       # 빌드를 위한 조건 -> nodejs 설치
       # uses: actions/setup-node@v2
@@ -33,27 +34,27 @@ jobs:
         with:
           node-version: '22'
 
-      # npm install 라이브러리 설치
+      # npm install 라이브러리 설치 -> node_modules  생성
       # run: npm install
       - name: install 독립 라이브러리
         run: npm install
 
-        # 단위 테스트 -> 생략
-        #- name: 단위 테스트
-        #  run: npm test
+      # 단위 테스트 -> 생략
+      #- name: 단위테스트
+      #  run: npm test
 
       # 빌드
       # run: npm run build
-      - name: build
+      - name: 빌드
         run: |
-          npm run build  
+          npm run build
           ls ./build
 
       # 빌드의 결과물을 ec2 업로드
       # 대상 : ./build/*
       # 타겟 : /home/ubuntu/client
-      # 대상 위치에 존재하는 모든 리소스 -> EC2의 ~/client 하위에 복사
-      - name: build 결과물 EC2에 업로드
+      # 대상위치에 존재하는 모든 리소스->ec2의 ~/client 하위에 복사해둬라
+      - name: EC2에 빌드된 파일/폴더들 업로드
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -62,15 +63,14 @@ jobs:
           source: ./build/*
           target: /home/ubuntu/client
 
-      # [관리자 권한으로 - sudo]
-      # 뒷정리 (업로드 결과 -> nginx의 root로 이동(설정), 디렉토리 정리)
-      # EC2 접속 (지난주 참고)
-      # /var/www/html/* <- 삭제(rm) 처리
-      # /var/www/html/ <= 웹 서버의 기본 root 디렉토리, 단 설정으로 수정 가능
-      # /home/ubuntu/client/build/* /var/www/html/ 하위로 이동(mv)
+      # 뒷정리 (업로드 결과 -> nginx의  root로 이동(설정), 디렉토리 정리)
+      # EC 접속 (지난주 참고)
+      # /var/www/html/ <= 웹서버의 기본 root 디렉토리임, 단 설정으로 수정 가능함
+      # /var/www/html/* <- 기존에 서비스 하던 내용을 모두 삭제(rm) 처리
+      # /home/ubuntu/client/build/* /var/www/html 하위로 이동(mv)
       # nginx 재가동 : sudo systemctl restart nginx
-      # /home/ubuntu/client/ 하위 모든 내용 삭제
-      - name: SSH로 EC2 접속 및 파일 교체 후 웹 서버 재가동
+      # /home/ubuntu/client/ 하위 모든 내용 삭제(rm)
+      - name: SSH로 EC2에 접속후, html등 내용 교체 후 웹서버 재가동
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -82,3 +82,5 @@ jobs:
             sudo mv /home/ubuntu/client/build/* /var/www/html
             sudo systemctl restart nginx
             sudo rm -rf /home/ubuntu/client
+            
+            
